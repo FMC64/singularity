@@ -70,7 +70,7 @@ public:
 			res = (res * static_cast<scalar>(it) + c) / (static_cast<scalar>(it + 1));
 			it++;
 		}
-		return res;
+		return res + static_cast<double>(e.getNodeCount()) * 0.001;
 	}
 
 	const Expr& run(void)
@@ -94,7 +94,7 @@ public:
 			}
 			fav = best;
 			std::printf("Gen %zu: %g\n", g, best_cost);
-			if (best_cost < 0.00000001)
+			if (best_cost - static_cast<double>(fav->getNodeCount()) * 0.001 < 0.00000001)
 				break;
 		}
 		return *fav;
