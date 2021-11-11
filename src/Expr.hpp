@@ -316,10 +316,14 @@ private:
 			if (op == Op::Constant) {
 				if (!inhibited)
 					dst.push(*reinterpret_cast<scalar*>(pos));
+				else if (m == 2)
+					dst.push_constant(rng, arg_count);
 				pos += sizeof(scalar);
 			} else if (op == Op::Arg) {
 				if (!inhibited)
 					dst.push(*reinterpret_cast<arg*>(pos));
+				else if (m == 2)
+					dst.push_constant(rng, arg_count);
 				pos += sizeof(arg);
 			} else if (o < static_cast<uint8_t>(op_ass)) {		// self-mod
 			} else {	// ass
@@ -387,5 +391,10 @@ public:
 			dst.push(0.0);
 			dst.push(Op::End);
 		}
+	}
+
+	size_t getNodeCount(void) const
+	{
+		return m_node_count;
 	}
 };

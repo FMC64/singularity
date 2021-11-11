@@ -1,11 +1,23 @@
+#include <ctime>
 #include "../Solver.hpp"
 
-int main(void)
+int main(int argc, char **argv)
 {
-	Solver s([](scalar *args) {
-		return args[0];
+	argc--;
+	argv++;
+
+	size_t seed;
+	if (argc == 1)
+		seed = std::stoull(argv[0]);
+	else
+		seed = std::time(nullptr);
+
+	Solver s(seed, [](scalar *args) {
+		return args[0] * args[0];
 	}, 1, 100, 10);
-	auto b = s.run().format();
+	auto best = s.run();
+	auto b = best.format();
+	std::printf("Seed: %zu\n", seed);
 	std::printf("Best: %s\n", b.c_str());
 	return 0;
 }

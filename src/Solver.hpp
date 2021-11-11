@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ctime>
 #include <cstdio>
 #include <limits>
 #include <random>
@@ -11,9 +10,9 @@ class HqRng
 	std::mt19937_64 m_g;
 
 public:
-	HqRng(void)
+	HqRng(size_t seed)
 	{
-		m_g.seed(std::time(nullptr));
+		m_g.seed(seed);
 	}
 
 	size_t nextu(void)
@@ -45,12 +44,13 @@ class Solver
 	HqRng m_rng;
 
 public:
-	Solver(Model *model, size_t arg_count, size_t gen_size, size_t max_mut) :
+	Solver(size_t seed, Model *model, size_t arg_count, size_t gen_size, size_t max_mut) :
 		m_model(model),
 		m_arg_count(arg_count),
 		m_gen_size(gen_size),
 		m_max_mut(max_mut),
-		m_pool_size(1 + m_gen_size)
+		m_pool_size(1 + m_gen_size),
+		m_rng(seed)
 	{
 		m_exprs = new Expr[m_pool_size];
 	}
@@ -85,7 +85,7 @@ public:
 			for (size_t i = 0; i < m_pool_size; i++) {
 				auto c = &m_exprs[i];
 				if (c != fav)
-					fav->shuffle(*c, m_rng, m_max_mut, m_arg_count);
+					fav->shuffle(*c, m_rng, fav->getNodeCount() + m_max_mut, m_arg_count);
 				auto ccost = cost(*c);
 				if (ccost < best_cost) {
 					best = c;
@@ -94,6 +94,8 @@ public:
 			}
 			fav = best;
 			std::printf("Gen %zu: %g\n", g, best_cost);
+			if (best_cost < 0.00000001)
+				break;
 		}
 		return *fav;
 	}
