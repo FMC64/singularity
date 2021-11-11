@@ -296,7 +296,7 @@ private:
 	}
 
 	template <Rngable Rng>
-	inline uint8_t* s(Expr &dst, Rng &rng, uint8_t *pos, size_t &i, const uint8_t *muts, const size_t arg_count, bool inhibited) const
+	inline uint8_t* s(Expr &dst, Rng &rng, uint8_t *pos, size_t &i, const uint8_t *muts, const size_t arg_count, bool inhibited, size_t last_constant) const
 	{
 		while (true) {
 			auto o = *pos++;
@@ -308,8 +308,11 @@ private:
 
 			auto m = muts[i++];
 			inhibited = inhibited || m == 2;
-			if (!inhibited)
+			if (!inhibited) {
+				if (o < static_cast<uint8_t>(op_self))
+					last_constant = dst.m_size;
 				dst.push(op);
+			}
 			if (op == Op::Constant) {
 				if (!inhibited)
 					dst.push(*reinterpret_cast<scalar*>(pos));
@@ -320,13 +323,14 @@ private:
 				pos += sizeof(arg);
 			} else if (o < static_cast<uint8_t>(op_ass)) {		// self-mod
 			} else {	// ass
-				pos = s(dst, rng, pos, i, muts, arg_count, inhibited);
+				pos = s(dst, rng, pos, i, muts, arg_count, inhibited, -1);
 			}
 
 			if (m == 1 && !inhibited) {
 				uint8_t to_a = rng.nextu() % static_cast<uint8_t>(Op::End);
 				if (to_a < static_cast<uint8_t>(op_self)) {	// constant
-					// TODO: remove orphan nodes
+					if (last_constant != static_cast<size_t>(-1))
+						dst.m_size = last_constant;
 					dst.push(static_cast<Op>(to_a));
 					dst.push_constant_op(static_cast<Op>(to_a), rng, arg_count);
 				} else if (to_a < static_cast<uint8_t>(op_ass)) {	// self
@@ -375,7 +379,7 @@ public:
 		dst.m_size = 0;
 		dst.m_node_count = 0;
 		size_t i = 0;
-		s(dst, rng, m_buf, i, muts, arg_count, false);
+		s(dst, rng, m_buf, i, muts, arg_count, false, -1);
 		if (dst.m_node_count == 0) {
 			dst.m_size = 0;
 			dst.m_node_count = 0;
