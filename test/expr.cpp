@@ -15,7 +15,7 @@ test_case(expr_0)
 test_case(expr_1)
 {
 	Expr e;
-	double a = 5.2, b = 9.3;
+	scalar a = 5.2, b = 9.3;
 	e.push(Op::Constant);
 	e.push(static_cast<scalar>(a));
 	e.push(Op::Mul);
@@ -30,7 +30,7 @@ test_case(expr_1)
 test_case(expr_2)
 {
 	Expr e;
-	double a = 5.2, b = 9.3;
+	scalar a = 5.2, b = 9.3;
 	e.push(Op::Constant);
 	e.push(static_cast<scalar>(a));
 	e.push(Op::Add);
@@ -54,7 +54,7 @@ test_case(expr_4)
 	e.push(Op::End);
 	e.push(Op::Exp);
 	e.push(Op::End);
-	double args[] = {
+	scalar args[] = {
 		-8.6,
 		3.0
 	};

@@ -109,7 +109,7 @@ private:
 
 	#define EXPR_ASS(name, op) inline uint8_t* name(uint8_t *pos, scalar *args, scalar &res) const	\
 	{												\
-		double other;										\
+		scalar other;										\
 		auto r = e(pos, args, other);								\
 		res = op;										\
 		return r;										\
@@ -137,7 +137,7 @@ private:
 
 	inline uint8_t* e(uint8_t *pos, scalar *args, scalar &res) const
 	{
-		double acc;
+		scalar acc;
 		while (true) {
 			auto i = *pos++;
 			if (static_cast<Op>(i) == Op::End)
@@ -349,6 +349,25 @@ private:
 		return pos;
 	}
 
+	inline uint8_t* c_constants(uint8_t *pos, size_t &count, scalar **dst)
+	{
+		while (true) {
+			auto o = *pos++;
+			auto op = static_cast<Op>(o);
+			if (op == Op::End)
+				break;
+			if (op == Op::Constant) {
+				dst[count++] = reinterpret_cast<scalar*>(pos);
+				pos += sizeof(scalar);
+			} else if (op == Op::Arg)
+				pos += sizeof(arg);
+			else if (o < static_cast<uint8_t>(op_ass));	// self-mod
+			else	// ass
+				pos = c_constants(pos, count, dst);
+		}
+		return pos;
+	}
+
 public:
 	inline scalar eval(scalar *args) const
 	{
@@ -396,5 +415,11 @@ public:
 	size_t getNodeCount(void) const
 	{
 		return m_node_count;
+	}
+
+	void getConstants(size_t &count, scalar **dst)
+	{
+		count = 0;
+		c_constants(m_buf, count, dst);
 	}
 };

@@ -20,12 +20,12 @@ public:
 		return m_g();
 	}
 
-	double nextz(void)
+	scalar nextz(void)
 	{
-		return nextu() / static_cast<double>(static_cast<size_t>(-1));
+		return nextu() / static_cast<scalar>(static_cast<size_t>(-1));
 	}
 
-	double nextn(void)
+	scalar nextn(void)
 	{
 		return (nextz() -.5) * 2.0;
 	}
@@ -59,7 +59,7 @@ public:
 		delete[] m_exprs;
 	}
 
-	scalar cost(Expr &e)
+	inline scalar cost(Expr &e)
 	{
 		scalar width = 10.0, dw = 0.1;
 		size_t it = 0;
@@ -70,7 +70,33 @@ public:
 			res = (res * static_cast<scalar>(it) + c) / (static_cast<scalar>(it + 1));
 			it++;
 		}
-		return res + static_cast<double>(e.getNodeCount()) * 0.001;
+		return res;
+	}
+
+	inline scalar cost_full(Expr &e)
+	{
+		return cost(e) + static_cast<scalar>(e.getNodeCount()) * 0.001;
+	}
+
+	inline void opt(Expr &e)
+	{
+		size_t c_count;
+		scalar *cs[e.getNodeCount()];
+		e.getConstants(c_count, cs);
+		scalar o[c_count];
+		for (size_t it = 0; it < 4; it++) {
+			for (size_t i = 0; i < c_count; i++) {
+				auto v = *cs[i];
+				static constexpr scalar de = 0.0000001;
+				auto s1 = cost(e);
+				*cs[i] += de;
+				auto s2 = cost(e);
+				*cs[i] = v;
+				o[i] -= s1 / ((s2 - s1) / de);
+			}
+			for (size_t i = 0; i < c_count; i++)
+				*cs[i] = o[i];
+		}
 	}
 
 	const Expr& run(void)
@@ -79,22 +105,24 @@ public:
 		fav->push(Op::Constant);
 		fav->push(0.0);
 		fav->push(Op::End);
-		for (size_t g = 0; g < 100; g++) {
+		for (size_t g = 0; g < 1000; g++) {
 			Expr *best = nullptr;
-			double best_cost = std::numeric_limits<scalar>::infinity();
+			scalar best_cost = std::numeric_limits<scalar>::infinity();
 			for (size_t i = 0; i < m_pool_size; i++) {
 				auto c = &m_exprs[i];
-				if (c != fav)
+				if (c != fav) {
 					fav->shuffle(*c, m_rng, fav->getNodeCount() + m_max_mut, m_arg_count);
-				auto ccost = cost(*c);
+					opt(*c);
+				}
+				auto ccost = cost_full(*c);
 				if (ccost < best_cost) {
 					best = c;
 					best_cost = ccost;
 				}
 			}
 			fav = best;
-			std::printf("Gen %zu: %g\n", g, best_cost);
-			if (best_cost - static_cast<double>(fav->getNodeCount()) * 0.001 < 0.00000001)
+			//std::printf("Gen %zu: %g\n", g, best_cost);
+			if (best_cost - static_cast<scalar>(fav->getNodeCount()) * 0.001 < 0.00000001)
 				break;
 		}
 		return *fav;

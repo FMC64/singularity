@@ -12,8 +12,8 @@ int main(int argc, char **argv)
 	else
 		seed = std::time(nullptr);
 
-	Solver s(seed, [](scalar *args) {
-		return args[0] * args[0];
+	Solver s(seed, [](scalar *args) -> double {
+		return 15.2 / (args[0]) + args[0];
 	}, 1, 100, 10);
 	auto best = s.run();
 	auto b = best.format();
