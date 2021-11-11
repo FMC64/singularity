@@ -61,7 +61,7 @@ public:
 	{
 		size_t w = m_size + n;
 		if (w > m_allocated) {
-			m_allocated = ar::max(m_allocated, static_cast<size_t>(1)) * static_cast<size_t>(2);
+			m_allocated = ar::max(m_allocated * static_cast<size_t>(2), w);
 			m_buf = reinterpret_cast<uint8_t*>(std::realloc(m_buf, m_allocated));
 		}
 	}
@@ -260,6 +260,30 @@ private:
 		return pos;
 	}
 
+	template <Rngable Rng>
+	inline uint8_t* s(Expr &dst, Rng &rng, uint8_t *pos, size_t i, const uint8_t *muts, const size_t arg_count) const
+	{
+		while (true) {
+			auto o = *pos++;
+			auto op = static_cast<Op>(o);
+			dst.push(op);
+			if (op == Op::End)
+				break;
+			auto m = muts[i++];
+			if (op == Op::Constant) {
+				dst.push(*reinterpret_cast<scalar*>(pos));
+				pos += sizeof(scalar);
+			} else if (op == Op::Arg) {
+				dst.push(*reinterpret_cast<arg*>(pos));
+				pos += sizeof(arg);
+			} else if (o < static_cast<uint8_t>(op_ass)) {		// self-mod
+			} else {	// ass
+				pos = s(dst, rng, pos, i, muts, arg_count);
+			}
+		}
+		return pos;
+	}
+
 public:
 	inline scalar eval(scalar *args) const
 	{
@@ -285,5 +309,14 @@ public:
 	template <Rngable Rng>
 	inline void shuffle(Expr &dst, Rng &rng, size_t max_mut, size_t arg_count) const
 	{
+		size_t mutc = rng.nextu() % max_mut;
+		uint8_t muts[m_node_count];	// 0: identity, 1: add, 2: remove
+		std::memset(muts, 0, sizeof(muts));
+		for (size_t i = 0; i < mutc; i++)
+			muts[rng.nextu() % m_node_count] = (rng.nextu() & 1) + 1;
+
+		dst.m_size = 0;
+		dst.m_node_count = 0;
+		s(dst, rng, m_buf, 0, muts, arg_count);
 	}
 };

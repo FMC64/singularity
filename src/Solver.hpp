@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ctime>
+#include <cstdio>
 #include <limits>
 #include <random>
 #include "Expr.hpp"
@@ -92,6 +93,7 @@ public:
 				}
 			}
 			fav = best;
+			std::printf("Gen %zu: %g\n", g, best_cost);
 		}
 		return *fav;
 	}
