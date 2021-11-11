@@ -7,15 +7,15 @@
 #include <sstream>
 #include "ar.hpp"
 
+using scalar = double;
+using arg = uint8_t;
+
 template <typename T>
 concept Rngable = requires(T v) {
 	requires std::is_same_v<decltype(v.nextu()), size_t>;
-	requires std::is_same_v<decltype(v.nextz()), double>;
-	requires std::is_same_v<decltype(v.nextn()), double>;
+	requires std::is_same_v<decltype(v.nextz()), scalar>;
+	requires std::is_same_v<decltype(v.nextn()), scalar>;
 };
-
-using scalar = double;
-using arg = uint8_t;
 
 enum class Op : uint8_t {
 	Constant = 0,	// Starting values
@@ -71,7 +71,8 @@ public:
 	{
 		static constexpr size_t s = sizeof(std::remove_reference_t<T>);
 		alloc(s);
-		*reinterpret_cast<std::remove_reference_t<T>*>(m_buf + m_size) = v;
+		//*reinterpret_cast<std::remove_reference_t<T>*>(m_buf + m_size) = v;
+		std::memcpy(m_buf + m_size, &v, s);
 		m_size += s;
 		if constexpr (std::is_same_v<std::remove_reference_t<T>, Op>)
 			if (v != Op::End)
@@ -81,7 +82,8 @@ public:
 private:
 	inline uint8_t* e_constant(uint8_t *pos, scalar *, scalar &res) const
 	{
-		res = *reinterpret_cast<scalar*>(pos);
+		//res = *reinterpret_cast<scalar*>(pos);
+		std::memcpy(&res, pos, sizeof(scalar));
 		return pos + sizeof(scalar);
 	}
 
@@ -140,7 +142,9 @@ private:
 			auto i = *pos++;
 			if (static_cast<Op>(i) == Op::End)
 				break;
-			pos = (this->*e_table[i])(pos, args, acc);
+			size_t ndx = static_cast<size_t>(i);
+			auto h = e_table[ndx];
+			pos = (this->*h)(pos, args, acc);
 		}
 		res = acc;
 		return pos;
@@ -255,30 +259,83 @@ private:
 			auto i = *pos++;
 			if (static_cast<Op>(i) == Op::End)
 				break;
-			pos = (this->*f_table[i])(pos, res);
+			size_t ndx = static_cast<size_t>(i);
+			auto fh = f_table[ndx];
+			pos = (this->*fh)(pos, res);
 		}
 		return pos;
 	}
 
 	template <Rngable Rng>
-	inline uint8_t* s(Expr &dst, Rng &rng, uint8_t *pos, size_t i, const uint8_t *muts, const size_t arg_count) const
+	void push_constant_value(Rng &rng)
+	{
+		push(static_cast<scalar>(rng.nextn()));
+	}
+
+	template <Rngable Rng>
+	void push_constant_arg(Rng &rng, const size_t arg_count)
+	{
+		push(static_cast<arg>(rng.nextu() % arg_count));
+	}
+
+	template <bool PushOp = false, Rngable Rng>
+	void push_constant_op(Op op, Rng &rng, const size_t arg_count)
+	{
+		if constexpr (PushOp)
+			push(op);
+		if (op == Op::Constant)
+			push_constant_value(rng);
+		else
+			push_constant_arg(rng, arg_count);
+	}
+
+	template <Rngable Rng>
+	void push_constant(Rng &rng, size_t arg_count)
+	{
+		push_constant_op<true>(static_cast<Op>(static_cast<uint8_t>(rng.nextu() & 1)), rng, arg_count);
+	}
+
+	template <Rngable Rng>
+	inline uint8_t* s(Expr &dst, Rng &rng, uint8_t *pos, size_t &i, const uint8_t *muts, const size_t arg_count, bool inhibited) const
 	{
 		while (true) {
 			auto o = *pos++;
 			auto op = static_cast<Op>(o);
-			dst.push(op);
-			if (op == Op::End)
+			if (op == Op::End) {
+				dst.push(op);
 				break;
+			}
+
 			auto m = muts[i++];
+			inhibited = inhibited || m == 2;
+			if (!inhibited)
+				dst.push(op);
 			if (op == Op::Constant) {
-				dst.push(*reinterpret_cast<scalar*>(pos));
+				if (!inhibited)
+					dst.push(*reinterpret_cast<scalar*>(pos));
 				pos += sizeof(scalar);
 			} else if (op == Op::Arg) {
-				dst.push(*reinterpret_cast<arg*>(pos));
+				if (!inhibited)
+					dst.push(*reinterpret_cast<arg*>(pos));
 				pos += sizeof(arg);
 			} else if (o < static_cast<uint8_t>(op_ass)) {		// self-mod
 			} else {	// ass
-				pos = s(dst, rng, pos, i, muts, arg_count);
+				pos = s(dst, rng, pos, i, muts, arg_count, inhibited);
+			}
+
+			if (m == 1 && !inhibited) {
+				uint8_t to_a = rng.nextu() % static_cast<uint8_t>(Op::End);
+				if (to_a < static_cast<uint8_t>(op_self)) {	// constant
+					// TODO: remove orphan nodes
+					dst.push(static_cast<Op>(to_a));
+					dst.push_constant_op(static_cast<Op>(to_a), rng, arg_count);
+				} else if (to_a < static_cast<uint8_t>(op_ass)) {	// self
+					dst.push(static_cast<Op>(to_a));
+				} else {
+					dst.push(static_cast<Op>(to_a));
+					dst.push_constant(rng, arg_count);
+					dst.push(Op::End);
+				}
 			}
 		}
 		return pos;
@@ -317,6 +374,14 @@ public:
 
 		dst.m_size = 0;
 		dst.m_node_count = 0;
-		s(dst, rng, m_buf, 0, muts, arg_count);
+		size_t i = 0;
+		s(dst, rng, m_buf, i, muts, arg_count, false);
+		if (dst.m_node_count == 0) {
+			dst.m_size = 0;
+			dst.m_node_count = 0;
+			dst.push(Op::Constant);
+			dst.push(0.0);
+			dst.push(Op::End);
+		}
 	}
 };

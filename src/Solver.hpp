@@ -79,7 +79,7 @@ public:
 		fav->push(Op::Constant);
 		fav->push(0.0);
 		fav->push(Op::End);
-		for (size_t g = 0; g < 20; g++) {
+		for (size_t g = 0; g < 100; g++) {
 			Expr *best = nullptr;
 			double best_cost = std::numeric_limits<scalar>::infinity();
 			for (size_t i = 0; i < m_pool_size; i++) {
