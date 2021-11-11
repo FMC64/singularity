@@ -52,7 +52,7 @@ public:
 		m_pool_size(1 + m_gen_size),
 		m_rng(seed)
 	{
-		m_exprs = new Expr[m_pool_size];
+		m_exprs = new Expr[m_pool_size * 2];
 	}
 	~Solver(void)
 	{
@@ -109,9 +109,9 @@ public:
 			Expr *best = nullptr;
 			scalar best_cost = std::numeric_limits<scalar>::infinity();
 			for (size_t i = 0; i < m_pool_size; i++) {
-				auto c = &m_exprs[i];
+				auto c = &m_exprs[i * 2];
 				if (c != fav) {
-					fav->shuffle(*c, m_rng, fav->getNodeCount() + m_max_mut, m_arg_count);
+					c = fav->shuffle(*c, m_exprs[i * 2 + 1], m_rng, fav->getNodeCount() + m_max_mut, m_arg_count);
 					opt(*c);
 				}
 				auto ccost = cost_full(*c);

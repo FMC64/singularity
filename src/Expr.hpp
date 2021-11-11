@@ -391,25 +391,41 @@ public:
 	}
 
 	template <Rngable Rng>
-	inline void shuffle(Expr &dst, Rng &rng, size_t max_mut, size_t arg_count) const
+	inline Expr* shuffle(Expr &dst, Expr &opool, Rng &rng, size_t max_mut, size_t arg_count) const
 	{
-		size_t mutc = rng.nextu() % max_mut;
+		size_t mutc = (rng.nextu() % max_mut) + 1;
 		uint8_t muts[m_node_count];	// 0: identity, 1: add, 2: remove
 		std::memset(muts, 0, sizeof(muts));
-		for (size_t i = 0; i < mutc; i++)
-			muts[rng.nextu() % m_node_count] = (rng.nextu() & 1) + 1;
+		Expr *last = const_cast<Expr*>(this);
+		for (size_t i = 0; i < mutc; i++) {
+			size_t w = rng.nextu() % m_node_count;
+			muts[w] = (rng.nextu() & 1) + 1;
 
-		dst.m_size = 0;
-		dst.m_node_count = 0;
-		size_t i = 0;
-		s(dst, rng, m_buf, i, muts, arg_count, false, -1);
-		if (dst.m_node_count == 0) {
-			dst.m_size = 0;
-			dst.m_node_count = 0;
-			dst.push(Op::Constant);
-			dst.push(0.0);
-			dst.push(Op::End);
+			if (i == 0) {
+				dst.m_size = 0;
+				dst.m_node_count = 0;
+				size_t i = 0;
+				last->s(dst, rng, m_buf, i, muts, arg_count, false, -1);
+				last = &dst;
+			} else {
+				size_t i = 0;
+				auto n = last == &dst ? &opool : &dst;
+				last->s(*n, rng, m_buf, i, muts, arg_count, false, -1);
+				last = n;
+			}
+
+			if (last->m_node_count == 0) {
+				last->m_size = 0;
+				last->m_node_count = 0;
+				last->push(Op::Constant);
+				last->push(0.0);
+				last->push(Op::End);
+			}
+
+			muts[w] = 0;
 		}
+		return last;
+
 	}
 
 	size_t getNodeCount(void) const
